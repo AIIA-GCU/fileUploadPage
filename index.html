@@ -112,6 +112,9 @@
                 confirmButton:
                   "bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 mt-4",
               },
+            }).then(() => {
+              window.history.replaceState(null, "", window.location.pathname);
+              initializePage();
             });
           }
         }
@@ -168,8 +171,11 @@
           })
             .then((response) => response.json())
             .then((data) => {
+              if (!data.fileName) throw Error();
+
               const fileUrl = baseUrl + data.fileName;
               Swal.fire({
+                icon: "success",
                 title: "성공",
                 html: `
                     <p>파일이 성공적으로 업로드되었습니다.</p>
