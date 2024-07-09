@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>파일 업로드</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css"
+    />
+    <style>
+      body {
+        font-family: "Pretendard", sans-serif;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+      <div class="mb-4">
+        <div class="text-lg font-semibold mb-2">토큰 정보</div>
+        <div class="mb-1">
+          <span class="font-bold">사용자 ID:</span>
+          <span id="userId"></span>
+        </div>
+        <div class="mb-1">
+          <span class="font-bold">발행일시:</span>
+          <span id="issuedAt"></span>
+        </div>
+        <div class="mb-1">
+          <span class="font-bold">만료일시:</span>
+          <span id="expiresAt"></span>
+        </div>
+        <div class="mb-1">
+          <span class="font-bold">생성자:</span>
+          <span id="issuer"></span>
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <form id="uploadForm" enctype="multipart/form-data" class="space-y-4">
+          <div>
+            <label class="inline-flex items-center">
+              <input
+                type="radio"
+                name="fileType"
+                value="image"
+                class="form-radio"
+                checked
+              />
+              <span class="ml-2">이미지</span>
+            </label>
+            <label class="inline-flex items-center ml-6">
+              <input
+                type="radio"
+                name="fileType"
+                value="file"
+                class="form-radio"
+              />
+              <span class="ml-2">파일</span>
+            </label>
+          </div>
+          <div>
+            <input
+              type="file"
+              name="file"
+              class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              required
+            />
+          </div>
+          <div>
+            <button
+              type="submit"
+              class="w-full bg-blue-500 text-white py-2 rounded-lg shadow-md hover:bg-blue-600"
+            >
+              업로드
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      const baseUrl = "https://files.aiia-gcu.com";
+      function getQueryParam(name) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(name);
+      }
+
+      function parseTokenPayload(token) {
+        if (token.length > 0) {
+          try {
+            jwt = JSON.parse(atob(token.split(".")[1]));
+
+            document.getElementById("userId").innerText = jwt["userId"];
+            document.getElementById("issuedAt").innerText = new Date(
+              jwt["iat"] * 1000
+            ).toLocaleString();
+            document.getElementById("expiresAt").innerText = new Date(
+              jwt["exp"] * 1000
+            ).toLocaleString();
+            document.getElementById("issuer").innerText = jwt["iss"];
+          } catch (error) {
+            Swal.fire({
+              title: "오류",
+              text: "토큰 Payload를 파싱할 수 없습니다.",
+              icon: "error",
+              confirmButtonText: "확인",
+              customClass: {
+                popup: "bg-white rounded-lg shadow-lg",
+                title: "text-lg font-semibold",
+                confirmButton:
+                  "bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 mt-4",
+              },
+            });
+          }
+        }
+      }
+
+      function promptForToken() {
+        return Swal.fire({
+          title: "토큰 입력",
+          input: "text",
+          inputLabel: "파일 업로드 토큰을 입력하세요",
+          inputPlaceholder: "토큰을 입력하세요",
+          showCancelButton: false,
+          confirmButtonText: "확인",
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          customClass: {
+            popup: "bg-white rounded-lg shadow-lg",
+            title: "text-lg font-semibold",
+            input: "p-2 border border-gray-300 rounded-md",
+            confirmButton:
+              "bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 mt-4",
+            inputLabel: "mb-2",
+          },
+        }).then((result) => result.value);
+      }
+
+      async function initializePage() {
+        let token = getQueryParam("token");
+        if (!token) {
+          token = await promptForToken();
+          const newUrl = `${window.location.pathname}?token=${token}`;
+          window.history.replaceState(null, "", newUrl);
+        }
+
+        parseTokenPayload(token);
+      }
+
+      document
+        .getElementById("uploadForm")
+        .addEventListener("submit", function (event) {
+          event.preventDefault();
+
+          const form = event.target;
+          const formData = new FormData(form);
+          const token = getQueryParam("token");
+          const uploadType = form.querySelector(
+            'input[name="fileType"]:checked'
+          ).value;
+          const url = `${baseUrl}/${uploadType}?token=${token}`;
+
+          fetch(url, {
+            method: "POST",
+            body: formData,
+          })
+            .then((response) => response.json())
+            .then((data) => {
+              const fileUrl = baseUrl + data.fileName;
+              Swal.fire({
+                title: "성공",
+                html: `
+                    <p>파일이 성공적으로 업로드되었습니다.</p>
+                    <p>파일 경로: <a href="${fileUrl}" class="text-blue-500 underline">${fileUrl}</a></p>
+                    <div class="mt-4">
+                        <button id="closeButton" class="bg-gray-500 text-white py-2 px-4 rounded-lg mr-2">닫기</button>
+                        <button id="copyButton" class="bg-blue-500 text-white py-2 px-4 rounded-lg">복사하기</button>
+                    </div>
+                `,
+                showConfirmButton: false,
+                customClass: {
+                  popup: "bg-white rounded-lg shadow-lg",
+                  title: "text-lg font-semibold",
+                  confirmButton:
+                    "bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 mt-4",
+                },
+              });
+
+              document
+                .getElementById("closeButton")
+                .addEventListener("click", () => {
+                  Swal.close();
+                });
+
+              document
+                .getElementById("copyButton")
+                .addEventListener("click", () => {
+                  navigator.clipboard.writeText(fileUrl).then(() => {
+                    Swal.fire({
+                      icon: "success",
+                      title: "복사 완료",
+                      text: "파일 경로가 클립보드에 복사되었습니다.",
+                      confirmButtonText: "확인",
+                      customClass: {
+                        popup: "bg-white rounded-lg shadow-lg",
+                        title: "text-lg font-semibold",
+                        confirmButton:
+                          "bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 mt-4",
+                      },
+                    });
+                  });
+                });
+            })
+            .catch((error) => {
+              Swal.fire({
+                title: "오류",
+                text: "파일 업로드 중 오류가 발생했습니다.",
+                icon: "error",
+                confirmButtonText: "확인",
+                customClass: {
+                  popup: "bg-white rounded-lg shadow-lg",
+                  title: "text-lg font-semibold",
+                  confirmButton:
+                    "bg-red-500 text-white py-2 px-4 rounded-lg hover:bg-red-600 mt-4",
+                },
+              });
+            });
+        });
+
+      initializePage();
+    </script>
+  </body>
+</html>
